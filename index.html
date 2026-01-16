@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Baumwoll-Farmer 2D Spiel</title>
+<style>
+  body { margin: 0; font-family: sans-serif; background: #87ceeb; }
+  #info {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.5);
+    color: white;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 18px;
+  }
+  canvas { display: block; margin: 0 auto; background: #2e7d32; }
+</style>
+</head>
+<body>
+<div id="info">Baumwolle geerntet: <span id="cottonCount">0</span></div>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const plantRadius = 15;
+let cottonCount = 0;
+
+// Pflanzen erzeugen
+const plants = [];
+for(let x=100; x<=700; x+=120){
+  for(let y=100; y<=500; y+=120){
+    plants.push({x, y, harvested: false});
+  }
+}
+
+// Zeichnet eine Baumwollpflanze
+function drawPlant(plant, hover=false){
+  // Stiel
+  ctx.beginPath();
+  ctx.strokeStyle = "#2e7d32";
+  ctx.lineWidth = 4;
+  ctx.moveTo(plant.x, plant.y);
+  ctx.lineTo(plant.x, plant.y + 30);
+  ctx.stroke();
+
+  // Baumwollbüschel
+  const colors = plant.harvested ? ["#654321","#654321"] : ["#ffffff","#eeeeee"];
+  colors.forEach((color, i) => {
+    ctx.beginPath();
+    ctx.arc(plant.x + (i*6 - 3), plant.y, plantRadius, 0, Math.PI*2);
+    ctx.fillStyle = hover ? "#fffae6" : color; // Hover leicht gelblich
+    ctx.fill();
+    ctx.strokeStyle = "#999999";
+    ctx.stroke();
+  });
+}
+
+// Alle Pflanzen zeichnen
+function drawPlants(mouseX=null, mouseY=null){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  
+  plants.forEach(plant => {
+    let hover = false;
+    if(mouseX && mouseY){
+      const dx = plant.x - mouseX;
+      const dy = plant.y - mouseY;
+      if(Math.sqrt(dx*dx + dy*dy) < plantRadius+5 && !plant.harvested) hover = true;
+    }
+    drawPlant(plant, hover);
+  });
+}
+
+// Mausinteraktion
+canvas.addEventListener('mousemove', (e)=>{
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  drawPlants(mouseX, mouseY);
+});
+
+canvas.addEventListener('click', (event) => {
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = event.clientX - rect.left;
+  const mouseY = event.clientY - rect.top;
+
+  plants.forEach(plant => {
+    const dx = plant.x - mouseX;
+    const dy = plant.y - mouseY;
+    if(!plant.harvested && Math.sqrt(dx*dx + dy*dy) < plantRadius+5){
+      plant.harvested = true;
+      cottonCount++;
+      document.getElementById('cottonCount').innerText = cottonCount;
+    }
+  });
+
+  drawPlants(mouseX, mouseY);
+});
+
+// Erstes Zeichnen
+drawPlants();
+</script>
+</body>
+</html>
