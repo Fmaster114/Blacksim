@@ -1,27 +1,7 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="UTF-8">
-<title>Baumwoll-Farmer</title>
-<style>
-  body { margin:0; background:#87ceeb; overflow:hidden; font-family:sans-serif; }
-  #info {
-    position:fixed; top:10px; left:10px;
-    background:rgba(0,0,0,0.6);
-    color:white; padding:10px; border-radius:8px;
-    font-size:18px; z-index:10;
-  }
-  canvas { display:block; margin:auto; background:#4caf50; }
-</style>
-</head>
-<body>
-
-<div id="info">🌿 Baumwolle: <span id="cotton">0</span></div>
-<canvas id="game" width="800" height="600"></canvas>
-
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false;
 
 const WORLD_WIDTH = 2000;
 const WORLD_HEIGHT = 2000;
@@ -38,7 +18,7 @@ const camera = { x: 0, y: 0 };
 const farmer = {
   x: 1000,
   y: 1000,
-  size: 18,
+  size: 16,
   speed: 3
 };
 
@@ -62,12 +42,12 @@ window.addEventListener("keyup", e => keys[e.key] = false);
 
 // ---------------- Partikel ----------------
 function spawnParticles(x, y) {
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 8; i++) {
     particles.push({
       x, y,
-      vx: (Math.random()-0.5)*3,
-      vy: Math.random()*-3,
-      life: 40
+      vx: (Math.random()-0.5)*2,
+      vy: Math.random()*-2,
+      life: 30
     });
   }
 }
@@ -84,9 +64,8 @@ function update() {
   farmer.x = Math.max(40, Math.min(WORLD_WIDTH-40, farmer.x));
   farmer.y = Math.max(40, Math.min(WORLD_HEIGHT-40, farmer.y));
 
-  // Kamera folgt Farmer
-  camera.x = farmer.x - canvas.width / 2;
-  camera.y = farmer.y - canvas.height / 2;
+  camera.x = Math.floor(farmer.x - canvas.width / 2);
+  camera.y = Math.floor(farmer.y - canvas.height / 2);
 
   plants.forEach(p => {
     if (p.stage < 3 && Date.now() - p.lastGrow > GROW_TIME) {
@@ -98,7 +77,7 @@ function update() {
   if (keys[" "]) {
     plants.forEach(p => {
       const d = Math.hypot(p.x - farmer.x, p.y - farmer.y);
-      if (d < 35 && p.stage === 3) {
+      if (d < 32 && p.stage === 3) {
         p.stage = 0;
         p.lastGrow = Date.now();
         cotton++;
@@ -120,70 +99,78 @@ function update() {
   }
 }
 
-// ---------------- Draw ----------------
-function worldX(x){ return x - camera.x; }
-function worldY(y){ return y - camera.y; }
+// ---------------- Helpers ----------------
+function wx(x){ return Math.floor(x - camera.x); }
+function wy(y){ return Math.floor(y - camera.y); }
 
+// ---------------- Draw ----------------
 function drawGround() {
   ctx.fillStyle = "#3e8e41";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  ctx.strokeStyle = "rgba(0,0,0,0.1)";
-  for (let y = -camera.y % 80; y < canvas.height; y += 80) {
-    ctx.beginPath();
-    ctx.moveTo(0,y);
-    ctx.lineTo(canvas.width,y);
-    ctx.stroke();
+  ctx.fillStyle = "#357a38";
+  for (let y = -camera.y % 64; y < canvas.height; y += 64) {
+    ctx.fillRect(0, y, canvas.width, 2);
   }
 }
 
 function drawPlant(p) {
-  const sway = Math.sin(tick/20 + p.x) * 2;
+  const px = wx(p.x);
+  const py = wy(p.y);
 
-  ctx.strokeStyle = "#2e7d32";
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(worldX(p.x), worldY(p.y));
-  ctx.lineTo(worldX(p.x), worldY(p.y + 30));
-  ctx.stroke();
+  // Schatten
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.fillRect(px - 10, py + 22, 20, 6);
 
-  const cottonCount = p.stage + 1;
-  for (let i = 0; i < cottonCount; i++) {
-    ctx.beginPath();
-    ctx.arc(
-      worldX(p.x + (Math.random()-0.5)*14),
-      worldY(p.y + sway + (Math.random()-0.5)*10),
-      8 + p.stage*2,
-      0, Math.PI*2
-    );
-    ctx.fillStyle = p.stage === 3 ? "#ffffff" : "#ddd";
-    ctx.fill();
-    ctx.strokeStyle = "#aaa";
-    ctx.stroke();
-  }
+  // Stiel (Pixel)
+  ctx.fillStyle = "#2e7d32";
+  ctx.fillRect(px - 2, py, 4, 28);
+
+  // Baumwolle (Pixel-Art Bollen)
+  const bollLayouts = [
+    [], // 0
+    [[0,0]],
+    [[-6,0],[6,0]],
+    [[-6,0],[6,0],[0,-6]]
+  ];
+
+  const layout = bollLayouts[p.stage];
+  layout.forEach(o => {
+    // Schatten Boll
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillRect(px + o[0] - 5, py + o[1] + 3, 10, 6);
+
+    // Boll
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(px + o[0] - 6, py + o[1] - 6, 12, 12);
+
+    // Highlight
+    ctx.fillStyle = "#eeeeee";
+    ctx.fillRect(px + o[0] - 4, py + o[1] - 4, 5, 5);
+  });
 }
 
 function drawFarmer() {
-  ctx.fillStyle = "rgba(0,0,0,0.25)";
-  ctx.beginPath();
-  ctx.ellipse(worldX(farmer.x), worldY(farmer.y + 32), 18, 6, 0, 0, Math.PI*2);
-  ctx.fill();
+  const x = wx(farmer.x);
+  const y = wy(farmer.y);
 
+  // Schatten
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  ctx.fillRect(x - 10, y + 28, 20, 6);
+
+  // Kopf
   ctx.fillStyle = "#573E1F";
-  ctx.beginPath();
-  ctx.arc(worldX(farmer.x), worldY(farmer.y - 10), farmer.size, 0, Math.PI*2);
-  ctx.fill();
+  ctx.fillRect(x - 8, y - 20, 16, 16);
 
+  // Körper
   ctx.fillStyle = "#1976d2";
-  ctx.fillRect(worldX(farmer.x - 14), worldY(farmer.y), 28, 34);
+  ctx.fillRect(x - 10, y, 20, 28);
 }
 
 function drawParticles() {
   particles.forEach(p => {
-    ctx.fillStyle = "rgba(255,255,255,"+(p.life/40)+")";
-    ctx.beginPath();
-    ctx.arc(worldX(p.x), worldY(p.y), 4, 0, Math.PI*2);
-    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,"+(p.life/30)+")";
+    ctx.fillRect(wx(p.x), wy(p.y), 4, 4);
   });
 }
 
@@ -202,5 +189,3 @@ function loop() {
 }
 loop();
 </script>
-</body>
-</html>
