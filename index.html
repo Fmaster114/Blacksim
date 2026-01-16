@@ -4,16 +4,15 @@
 <meta charset="UTF-8">
 <title>Baumwoll-Farmer Pixelart</title>
 <style>
-  body {
+  html, body {
     margin: 0;
+    padding: 0;
     background: #87ceeb;
     overflow: hidden;
     font-family: sans-serif;
   }
   canvas {
     display: block;
-    margin: auto;
-    background: #4caf50;
     image-rendering: pixelated;
   }
   #info {
@@ -32,55 +31,100 @@
 <body>
 
 <div id="info">🌿 Baumwolle: <span id="cotton">0</span></div>
-<canvas id="game" width="800" height="600"></canvas>
+<canvas id="game"></canvas>
 
 <script defer>
+// ================= Canvas / Fullscreen =================
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
 
-// ---------------- Welt ----------------
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+// ================= Audio =================
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+const audioCtx = new AudioCtx();
+let musicStarted = false;
+
+function playHarvestSound() {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = "square";
+  osc.frequency.value = 600;
+  gain.gain.value = 0.1;
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start();
+  osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.15);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+  osc.stop(audioCtx.currentTime + 0.2);
+}
+
+function startMusic() {
+  if (musicStarted) return;
+  musicStarted = true;
+
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = "triangle";
+  osc.frequency.value = 110;
+  gain.gain.value = 0.03;
+
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start();
+
+  // sanftes „Atmen“
+  setInterval(() => {
+    osc.frequency.setValueAtTime(
+      100 + Math.random() * 30,
+      audioCtx.currentTime
+    );
+  }, 1000);
+}
+
+window.addEventListener("keydown", () => {
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  startMusic();
+}, { once: true });
+
+// ================= Welt =================
 const WORLD_WIDTH = 2000;
 const WORLD_HEIGHT = 2000;
 
-// ---------------- Mini-Map ----------------
+// Mini-Map
 const MINIMAP_SIZE = 160;
 const MINIMAP_PADDING = 10;
 
-// ---------------- State ----------------
+// State
 let cotton = 0;
 const keys = {};
 const particles = [];
 
-// ---------------- Kamera ----------------
+// Kamera
 const camera = { x: 0, y: 0 };
 
-// ---------------- Farmer ----------------
-const farmer = {
-  x: 1000,
-  y: 1000,
-  speed: 3
-};
+// Farmer
+const farmer = { x: 1000, y: 1000, speed: 3 };
 
-// ---------------- Pflanzen ----------------
+// Pflanzen
 const plants = [];
 const GROW_TIME = 5000;
 
 for (let x = 200; x < WORLD_WIDTH; x += 120) {
   for (let y = 200; y < WORLD_HEIGHT; y += 120) {
-    plants.push({
-      x, y,
-      stage: 3,
-      lastGrow: Date.now()
-    });
+    plants.push({ x, y, stage: 3, lastGrow: Date.now() });
   }
 }
 
-// ---------------- Input ----------------
+// Input
 window.addEventListener("keydown", e => keys[e.key] = true);
 window.addEventListener("keyup", e => keys[e.key] = false);
 
-// ---------------- Partikel ----------------
+// Partikel
 function spawnParticles(x, y) {
   for (let i = 0; i < 8; i++) {
     particles.push({
@@ -92,7 +136,7 @@ function spawnParticles(x, y) {
   }
 }
 
-// ---------------- Update ----------------
+// Update
 function update() {
   if (keys["w"] || keys["ArrowUp"]) farmer.y -= farmer.speed;
   if (keys["s"] || keys["ArrowDown"]) farmer.y += farmer.speed;
@@ -114,13 +158,13 @@ function update() {
 
   if (keys[" "]) {
     plants.forEach(p => {
-      const d = Math.hypot(p.x - farmer.x, p.y - farmer.y);
-      if (d < 32 && p.stage === 3) {
+      if (p.stage === 3 && Math.hypot(p.x - farmer.x, p.y - farmer.y) < 32) {
         p.stage = 0;
         p.lastGrow = Date.now();
         cotton++;
         document.getElementById("cotton").textContent = cotton;
         spawnParticles(p.x, p.y);
+        playHarvestSound();
       }
     });
   }
@@ -131,21 +175,19 @@ function update() {
     pt.vy += 0.15;
     pt.life--;
   });
-
   for (let i = particles.length - 1; i >= 0; i--) {
     if (particles[i].life <= 0) particles.splice(i, 1);
   }
 }
 
-// ---------------- Helpers ----------------
+// Helpers
 const wx = x => Math.floor(x - camera.x);
 const wy = y => Math.floor(y - camera.y);
 
-// ---------------- Draw ----------------
+// Draw
 function drawGround() {
   ctx.fillStyle = "#3e8e41";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
+  ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle = "#357a38";
   for (let y = -camera.y % 64; y < canvas.height; y += 64) {
     ctx.fillRect(0, y, canvas.width, 2);
@@ -153,8 +195,7 @@ function drawGround() {
 }
 
 function drawPlant(p) {
-  const px = wx(p.x);
-  const py = wy(p.y);
+  const px = wx(p.x), py = wy(p.y);
 
   ctx.fillStyle = "rgba(0,0,0,0.3)";
   ctx.fillRect(px - 10, py + 24, 20, 6);
@@ -162,42 +203,28 @@ function drawPlant(p) {
   ctx.fillStyle = "#2e7d32";
   ctx.fillRect(px - 2, py, 4, 28);
 
-  const layouts = [
-    [],
-    [[0,0]],
-    [[-6,0],[6,0]],
-    [[-6,0],[6,0],[0,-6]]
-  ];
-
+  const layouts = [[], [[0,0]], [[-6,0],[6,0]], [[-6,0],[6,0],[0,-6]]];
   layouts[p.stage].forEach(o => {
     ctx.fillStyle = "#00000055";
     ctx.fillRect(px + o[0] - 5, py + o[1] + 3, 10, 6);
-
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(px + o[0] - 6, py + o[1] - 6, 12, 12);
-
-    ctx.fillStyle = "#eeeeee";
-    ctx.fillRect(px + o[0] - 4, py + o[1] - 4, 5, 5);
   });
 }
 
 function drawFarmer() {
-  const x = wx(farmer.x);
-  const y = wy(farmer.y);
-
+  const x = wx(farmer.x), y = wy(farmer.y);
   ctx.fillStyle = "rgba(0,0,0,0.35)";
   ctx.fillRect(x - 10, y + 28, 20, 6);
-
   ctx.fillStyle = "#573E1F";
   ctx.fillRect(x - 8, y - 20, 16, 16);
-
   ctx.fillStyle = "#1976d2";
   ctx.fillRect(x - 10, y, 20, 28);
 }
 
 function drawParticles() {
   particles.forEach(p => {
-    ctx.fillStyle = "rgba(255,255,255," + (p.life / 30) + ")";
+    ctx.fillStyle = `rgba(255,255,255,${p.life/30})`;
     ctx.fillRect(wx(p.x), wy(p.y), 4, 4);
   });
 }
@@ -205,41 +232,29 @@ function drawParticles() {
 function drawMiniMap() {
   const scaleX = MINIMAP_SIZE / WORLD_WIDTH;
   const scaleY = MINIMAP_SIZE / WORLD_HEIGHT;
-
   const x0 = canvas.width - MINIMAP_SIZE - MINIMAP_PADDING;
   const y0 = MINIMAP_PADDING;
 
   ctx.fillStyle = "#1b5e20";
-  ctx.fillRect(x0, y0, MINIMAP_SIZE, MINIMAP_SIZE);
+  ctx.fillRect(x0,y0,MINIMAP_SIZE,MINIMAP_SIZE);
 
   plants.forEach(p => {
     if (p.stage === 3) {
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(
-        x0 + Math.floor(p.x * scaleX),
-        y0 + Math.floor(p.y * scaleY),
-        2, 2
-      );
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(x0 + p.x*scaleX, y0 + p.y*scaleY, 2, 2);
     }
   });
 
   ctx.fillStyle = "#2196f3";
-  ctx.fillRect(
-    x0 + Math.floor(farmer.x * scaleX) - 2,
-    y0 + Math.floor(farmer.y * scaleY) - 2,
-    4, 4
-  );
+  ctx.fillRect(x0 + farmer.x*scaleX - 2, y0 + farmer.y*scaleY - 2, 4, 4);
 
   ctx.strokeStyle = "#ffeb3b";
   ctx.strokeRect(
-    x0 + Math.floor(camera.x * scaleX),
-    y0 + Math.floor(camera.y * scaleY),
-    Math.floor(canvas.width * scaleX),
-    Math.floor(canvas.height * scaleY)
+    x0 + camera.x*scaleX,
+    y0 + camera.y*scaleY,
+    canvas.width*scaleX,
+    canvas.height*scaleY
   );
-
-  ctx.strokeStyle = "#000";
-  ctx.strokeRect(x0, y0, MINIMAP_SIZE, MINIMAP_SIZE);
 }
 
 function draw() {
@@ -250,7 +265,7 @@ function draw() {
   drawMiniMap();
 }
 
-// ---------------- Loop ----------------
+// Loop
 function loop() {
   update();
   draw();
