@@ -2,106 +2,143 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Baumwoll-Farmer 2D Spiel</title>
+<title>Baumwoll-Farmer</title>
 <style>
-  body { margin: 0; font-family: sans-serif; background: #87ceeb; }
+  body { margin:0; background:#87ceeb; font-family:sans-serif; }
+  canvas { display:block; margin:auto; background:#3c8d40; }
   #info {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background: rgba(0,0,0,0.5);
-    color: white;
-    padding: 10px;
-    border-radius: 5px;
-    font-size: 18px;
+    position:absolute; top:10px; left:10px;
+    background:rgba(0,0,0,0.6);
+    color:white; padding:10px; border-radius:8px;
+    font-size:18px;
   }
-  canvas { display: block; margin: 0 auto; background: #2e7d32; }
 </style>
 </head>
 <body>
-<div id="info">Baumwolle geerntet: <span id="cottonCount">0</span></div>
-<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<div id="info">🌿 Baumwolle: <span id="cotton">0</span></div>
+<canvas id="game" width="800" height="600"></canvas>
 
 <script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-const plantRadius = 15;
-let cottonCount = 0;
+let cotton = 0;
+const keys = {};
 
-// Pflanzen erzeugen
+// ---------------- Farmer ----------------
+const farmer = {
+  x: 400,
+  y: 300,
+  size: 18,
+  speed: 3
+};
+
+// ---------------- Pflanzen ----------------
 const plants = [];
-for(let x=100; x<=700; x+=120){
-  for(let y=100; y<=500; y+=120){
-    plants.push({x, y, harvested: false});
+const GROW_TIME = 5000; // ms pro Wachstumsstufe
+
+for (let x = 120; x <= 680; x += 120) {
+  for (let y = 120; y <= 480; y += 120) {
+    plants.push({
+      x, y,
+      stage: 3,
+      lastGrow: Date.now()
+    });
   }
 }
 
-// Zeichnet eine Baumwollpflanze
-function drawPlant(plant, hover=false){
+// ---------------- Input ----------------
+window.addEventListener("keydown", e => keys[e.key] = true);
+window.addEventListener("keyup", e => keys[e.key] = false);
+
+// ---------------- Update ----------------
+function update() {
+  // Bewegung
+  if (keys["w"] || keys["ArrowUp"]) farmer.y -= farmer.speed;
+  if (keys["s"] || keys["ArrowDown"]) farmer.y += farmer.speed;
+  if (keys["a"] || keys["ArrowLeft"]) farmer.x -= farmer.speed;
+  if (keys["d"] || keys["ArrowRight"]) farmer.x += farmer.speed;
+
+  // Grenzen
+  farmer.x = Math.max(20, Math.min(780, farmer.x));
+  farmer.y = Math.max(20, Math.min(580, farmer.y));
+
+  // Wachstum
+  plants.forEach(p => {
+    if (p.stage < 3 && Date.now() - p.lastGrow > GROW_TIME) {
+      p.stage++;
+      p.lastGrow = Date.now();
+    }
+  });
+
+  // Ernten
+  if (keys[" "]) {
+    plants.forEach(p => {
+      const d = Math.hypot(p.x - farmer.x, p.y - farmer.y);
+      if (d < 30 && p.stage === 3) {
+        p.stage = 0;
+        p.lastGrow = Date.now();
+        cotton++;
+        document.getElementById("cotton").textContent = cotton;
+      }
+    });
+  }
+}
+
+// ---------------- Draw ----------------
+function drawPlant(p) {
   // Stiel
-  ctx.beginPath();
   ctx.strokeStyle = "#2e7d32";
   ctx.lineWidth = 4;
-  ctx.moveTo(plant.x, plant.y);
-  ctx.lineTo(plant.x, plant.y + 30);
+  ctx.beginPath();
+  ctx.moveTo(p.x, p.y);
+  ctx.lineTo(p.x, p.y + 25);
   ctx.stroke();
 
-  // Baumwollbüschel
-  const colors = plant.harvested ? ["#654321","#654321"] : ["#ffffff","#eeeeee"];
-  colors.forEach((color, i) => {
-    ctx.beginPath();
-    ctx.arc(plant.x + (i*6 - 3), plant.y, plantRadius, 0, Math.PI*2);
-    ctx.fillStyle = hover ? "#fffae6" : color; // Hover leicht gelblich
-    ctx.fill();
-    ctx.strokeStyle = "#999999";
-    ctx.stroke();
-  });
+  // Baumwolle
+  const sizes = [6, 9, 12, 15];
+  const colors = ["#a1887f", "#d7ccc8", "#f5f5f5", "#ffffff"];
+
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, sizes[p.stage], 0, Math.PI * 2);
+  ctx.fillStyle = colors[p.stage];
+  ctx.fill();
+  ctx.strokeStyle = "#999";
+  ctx.stroke();
 }
 
-// Alle Pflanzen zeichnen
-function drawPlants(mouseX=null, mouseY=null){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  
-  plants.forEach(plant => {
-    let hover = false;
-    if(mouseX && mouseY){
-      const dx = plant.x - mouseX;
-      const dy = plant.y - mouseY;
-      if(Math.sqrt(dx*dx + dy*dy) < plantRadius+5 && !plant.harvested) hover = true;
-    }
-    drawPlant(plant, hover);
-  });
+function drawFarmer() {
+  // Körper
+  ctx.fillStyle = "#ffcc80";
+  ctx.beginPath();
+  ctx.arc(farmer.x, farmer.y - 10, farmer.size, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hut
+  ctx.fillStyle = "#6d4c41";
+  ctx.fillRect(farmer.x - 20, farmer.y - 32, 40, 6);
+
+  // Körper
+  ctx.fillStyle = "#1976d2";
+  ctx.fillRect(farmer.x - 12, farmer.y, 24, 30);
 }
 
-// Mausinteraktion
-canvas.addEventListener('mousemove', (e)=>{
-  const rect = canvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
-  drawPlants(mouseX, mouseY);
-});
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-canvas.addEventListener('click', (event) => {
-  const rect = canvas.getBoundingClientRect();
-  const mouseX = event.clientX - rect.left;
-  const mouseY = event.clientY - rect.top;
+  plants.forEach(drawPlant);
+  drawFarmer();
+}
 
-  plants.forEach(plant => {
-    const dx = plant.x - mouseX;
-    const dy = plant.y - mouseY;
-    if(!plant.harvested && Math.sqrt(dx*dx + dy*dy) < plantRadius+5){
-      plant.harvested = true;
-      cottonCount++;
-      document.getElementById('cottonCount').innerText = cottonCount;
-    }
-  });
+// ---------------- Game Loop ----------------
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
 
-  drawPlants(mouseX, mouseY);
-});
-
-// Erstes Zeichnen
-drawPlants();
+loop();
 </script>
 </body>
 </html>
