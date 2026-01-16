@@ -5,7 +5,7 @@
 <title>Baumwoll-Farmer</title>
 <style>
   body { margin:0; background:#87ceeb; font-family:sans-serif; }
-  canvas { display:block; margin:auto; background:#3c8d40; }
+  canvas { display:block; margin:auto; background:#4caf50; }
   #info {
     position:absolute; top:10px; left:10px;
     background:rgba(0,0,0,0.6);
@@ -25,6 +25,7 @@ const ctx = canvas.getContext("2d");
 
 let cotton = 0;
 const keys = {};
+let tick = 0;
 
 // ---------------- Farmer ----------------
 const farmer = {
@@ -36,7 +37,7 @@ const farmer = {
 
 // ---------------- Pflanzen ----------------
 const plants = [];
-const GROW_TIME = 5000; // ms pro Wachstumsstufe
+const GROW_TIME = 5000;
 
 for (let x = 120; x <= 680; x += 120) {
   for (let y = 120; y <= 480; y += 120) {
@@ -54,17 +55,16 @@ window.addEventListener("keyup", e => keys[e.key] = false);
 
 // ---------------- Update ----------------
 function update() {
-  // Bewegung
+  tick++;
+
   if (keys["w"] || keys["ArrowUp"]) farmer.y -= farmer.speed;
   if (keys["s"] || keys["ArrowDown"]) farmer.y += farmer.speed;
   if (keys["a"] || keys["ArrowLeft"]) farmer.x -= farmer.speed;
   if (keys["d"] || keys["ArrowRight"]) farmer.x += farmer.speed;
 
-  // Grenzen
   farmer.x = Math.max(20, Math.min(780, farmer.x));
-  farmer.y = Math.max(20, Math.min(580, farmer.y));
+  farmer.y = Math.max(40, Math.min(580, farmer.y));
 
-  // Wachstum
   plants.forEach(p => {
     if (p.stage < 3 && Date.now() - p.lastGrow > GROW_TIME) {
       p.stage++;
@@ -72,11 +72,10 @@ function update() {
     }
   });
 
-  // Ernten
   if (keys[" "]) {
     plants.forEach(p => {
       const d = Math.hypot(p.x - farmer.x, p.y - farmer.y);
-      if (d < 30 && p.stage === 3) {
+      if (d < 35 && p.stage === 3) {
         p.stage = 0;
         p.lastGrow = Date.now();
         cotton++;
@@ -86,30 +85,54 @@ function update() {
   }
 }
 
+// ---------------- Draw Helpers ----------------
+function drawGround() {
+  ctx.fillStyle = "#3e8e41";
+  ctx.fillRect(0,0,800,600);
+
+  ctx.strokeStyle = "rgba(0,0,0,0.1)";
+  for (let y = 100; y < 600; y += 40) {
+    ctx.beginPath();
+    ctx.moveTo(0,y);
+    ctx.lineTo(800,y);
+    ctx.stroke();
+  }
+}
+
 // ---------------- Draw ----------------
 function drawPlant(p) {
+  const sway = Math.sin(tick / 20 + p.x) * 2;
+
   // Stiel
   ctx.strokeStyle = "#2e7d32";
   ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.moveTo(p.x, p.y);
-  ctx.lineTo(p.x, p.y + 25);
+  ctx.moveTo(p.x, p.y + sway);
+  ctx.lineTo(p.x, p.y + 28);
   ctx.stroke();
 
-  // Baumwolle
   const sizes = [6, 9, 12, 15];
-  const colors = ["#a1887f", "#d7ccc8", "#f5f5f5", "#ffffff"];
+  const colors = ["#8d6e63", "#d7ccc8", "#eeeeee", "#ffffff"];
+  const r = sizes[p.stage];
 
-  ctx.beginPath();
-  ctx.arc(p.x, p.y, sizes[p.stage], 0, Math.PI * 2);
-  ctx.fillStyle = colors[p.stage];
-  ctx.fill();
-  ctx.strokeStyle = "#999";
-  ctx.stroke();
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath();
+    ctx.arc(p.x + i * (r * 0.7), p.y + sway, r, 0, Math.PI * 2);
+    ctx.fillStyle = colors[p.stage];
+    ctx.fill();
+    ctx.strokeStyle = "#aaa";
+    ctx.stroke();
+  }
 }
 
 function drawFarmer() {
-  // Körper
+  // Schatten
+  ctx.fillStyle = "rgba(0,0,0,0.2)";
+  ctx.beginPath();
+  ctx.ellipse(farmer.x, farmer.y + 32, 18, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Kopf (DEIN Skin bleibt)
   ctx.fillStyle = "#573E1F";
   ctx.beginPath();
   ctx.arc(farmer.x, farmer.y - 10, farmer.size, 0, Math.PI * 2);
@@ -117,21 +140,21 @@ function drawFarmer() {
 
   // Hut
   ctx.fillStyle = "#6d4c41";
-  ctx.fillRect(farmer.x - 20, farmer.y - 32, 40, 6);
+  ctx.fillRect(farmer.x - 22, farmer.y - 34, 44, 6);
+  ctx.fillRect(farmer.x - 14, farmer.y - 48, 28, 14);
 
   // Körper
   ctx.fillStyle = "#1976d2";
-  ctx.fillRect(farmer.x - 12, farmer.y, 24, 30);
+  ctx.fillRect(farmer.x - 14, farmer.y, 28, 34);
 }
 
 function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+  drawGround();
   plants.forEach(drawPlant);
   drawFarmer();
 }
 
-// ---------------- Game Loop ----------------
+// ---------------- Loop ----------------
 function loop() {
   update();
   draw();
