@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <title>Baumwoll-Farmer</title>
 <style>
-  body { margin:0; background:#87ceeb; font-family:sans-serif; }
-  canvas { display:block; margin:auto; background:#4caf50; }
+  body { margin:0; background:#87ceeb; overflow:hidden; font-family:sans-serif; }
   #info {
-    position:absolute; top:10px; left:10px;
+    position:fixed; top:10px; left:10px;
     background:rgba(0,0,0,0.6);
     color:white; padding:10px; border-radius:8px;
-    font-size:18px;
+    font-size:18px; z-index:10;
   }
+  canvas { display:block; margin:auto; background:#4caf50; }
 </style>
 </head>
 <body>
@@ -23,14 +23,21 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
+const WORLD_WIDTH = 2000;
+const WORLD_HEIGHT = 2000;
+
 let cotton = 0;
 const keys = {};
+const particles = [];
 let tick = 0;
+
+// ---------------- Kamera ----------------
+const camera = { x: 0, y: 0 };
 
 // ---------------- Farmer ----------------
 const farmer = {
-  x: 400,
-  y: 300,
+  x: 1000,
+  y: 1000,
   size: 18,
   speed: 3
 };
@@ -39,8 +46,8 @@ const farmer = {
 const plants = [];
 const GROW_TIME = 5000;
 
-for (let x = 120; x <= 680; x += 120) {
-  for (let y = 120; y <= 480; y += 120) {
+for (let x = 200; x < WORLD_WIDTH; x += 120) {
+  for (let y = 200; y < WORLD_HEIGHT; y += 120) {
     plants.push({
       x, y,
       stage: 3,
@@ -53,6 +60,18 @@ for (let x = 120; x <= 680; x += 120) {
 window.addEventListener("keydown", e => keys[e.key] = true);
 window.addEventListener("keyup", e => keys[e.key] = false);
 
+// ---------------- Partikel ----------------
+function spawnParticles(x, y) {
+  for (let i = 0; i < 12; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random()-0.5)*3,
+      vy: Math.random()*-3,
+      life: 40
+    });
+  }
+}
+
 // ---------------- Update ----------------
 function update() {
   tick++;
@@ -62,8 +81,12 @@ function update() {
   if (keys["a"] || keys["ArrowLeft"]) farmer.x -= farmer.speed;
   if (keys["d"] || keys["ArrowRight"]) farmer.x += farmer.speed;
 
-  farmer.x = Math.max(20, Math.min(780, farmer.x));
-  farmer.y = Math.max(40, Math.min(580, farmer.y));
+  farmer.x = Math.max(40, Math.min(WORLD_WIDTH-40, farmer.x));
+  farmer.y = Math.max(40, Math.min(WORLD_HEIGHT-40, farmer.y));
+
+  // Kamera folgt Farmer
+  camera.x = farmer.x - canvas.width / 2;
+  camera.y = farmer.y - canvas.height / 2;
 
   plants.forEach(p => {
     if (p.stage < 3 && Date.now() - p.lastGrow > GROW_TIME) {
@@ -79,46 +102,61 @@ function update() {
         p.stage = 0;
         p.lastGrow = Date.now();
         cotton++;
+        spawnParticles(p.x, p.y);
         document.getElementById("cotton").textContent = cotton;
       }
     });
   }
-}
 
-// ---------------- Draw Helpers ----------------
-function drawGround() {
-  ctx.fillStyle = "#3e8e41";
-  ctx.fillRect(0,0,800,600);
+  particles.forEach(pt => {
+    pt.x += pt.vx;
+    pt.y += pt.vy;
+    pt.vy += 0.15;
+    pt.life--;
+  });
 
-  ctx.strokeStyle = "rgba(0,0,0,0.1)";
-  for (let y = 100; y < 600; y += 40) {
-    ctx.beginPath();
-    ctx.moveTo(0,y);
-    ctx.lineTo(800,y);
-    ctx.stroke();
+  for (let i = particles.length - 1; i >= 0; i--) {
+    if (particles[i].life <= 0) particles.splice(i, 1);
   }
 }
 
 // ---------------- Draw ----------------
-function drawPlant(p) {
-  const sway = Math.sin(tick / 20 + p.x) * 2;
+function worldX(x){ return x - camera.x; }
+function worldY(y){ return y - camera.y; }
 
-  // Stiel
+function drawGround() {
+  ctx.fillStyle = "#3e8e41";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.strokeStyle = "rgba(0,0,0,0.1)";
+  for (let y = -camera.y % 80; y < canvas.height; y += 80) {
+    ctx.beginPath();
+    ctx.moveTo(0,y);
+    ctx.lineTo(canvas.width,y);
+    ctx.stroke();
+  }
+}
+
+function drawPlant(p) {
+  const sway = Math.sin(tick/20 + p.x) * 2;
+
   ctx.strokeStyle = "#2e7d32";
   ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.moveTo(p.x, p.y + sway);
-  ctx.lineTo(p.x, p.y + 28);
+  ctx.moveTo(worldX(p.x), worldY(p.y));
+  ctx.lineTo(worldX(p.x), worldY(p.y + 30));
   ctx.stroke();
 
-  const sizes = [6, 9, 12, 15];
-  const colors = ["#8d6e63", "#d7ccc8", "#eeeeee", "#ffffff"];
-  const r = sizes[p.stage];
-
-  for (let i = -1; i <= 1; i++) {
+  const cottonCount = p.stage + 1;
+  for (let i = 0; i < cottonCount; i++) {
     ctx.beginPath();
-    ctx.arc(p.x + i * (r * 0.7), p.y + sway, r, 0, Math.PI * 2);
-    ctx.fillStyle = colors[p.stage];
+    ctx.arc(
+      worldX(p.x + (Math.random()-0.5)*14),
+      worldY(p.y + sway + (Math.random()-0.5)*10),
+      8 + p.stage*2,
+      0, Math.PI*2
+    );
+    ctx.fillStyle = p.stage === 3 ? "#ffffff" : "#ddd";
     ctx.fill();
     ctx.strokeStyle = "#aaa";
     ctx.stroke();
@@ -126,31 +164,33 @@ function drawPlant(p) {
 }
 
 function drawFarmer() {
-  // Schatten
-  ctx.fillStyle = "rgba(0,0,0,0.2)";
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
   ctx.beginPath();
-  ctx.ellipse(farmer.x, farmer.y + 32, 18, 6, 0, 0, Math.PI * 2);
+  ctx.ellipse(worldX(farmer.x), worldY(farmer.y + 32), 18, 6, 0, 0, Math.PI*2);
   ctx.fill();
 
-  // Kopf (DEIN Skin bleibt)
   ctx.fillStyle = "#573E1F";
   ctx.beginPath();
-  ctx.arc(farmer.x, farmer.y - 10, farmer.size, 0, Math.PI * 2);
+  ctx.arc(worldX(farmer.x), worldY(farmer.y - 10), farmer.size, 0, Math.PI*2);
   ctx.fill();
 
-  // Hut
-  ctx.fillStyle = "#6d4c41";
-  ctx.fillRect(farmer.x - 22, farmer.y - 34, 44, 6);
-  ctx.fillRect(farmer.x - 14, farmer.y - 48, 28, 14);
-
-  // Körper
   ctx.fillStyle = "#1976d2";
-  ctx.fillRect(farmer.x - 14, farmer.y, 28, 34);
+  ctx.fillRect(worldX(farmer.x - 14), worldY(farmer.y), 28, 34);
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.fillStyle = "rgba(255,255,255,"+(p.life/40)+")";
+    ctx.beginPath();
+    ctx.arc(worldX(p.x), worldY(p.y), 4, 0, Math.PI*2);
+    ctx.fill();
+  });
 }
 
 function draw() {
   drawGround();
   plants.forEach(drawPlant);
+  drawParticles();
   drawFarmer();
 }
 
@@ -160,7 +200,6 @@ function loop() {
   draw();
   requestAnimationFrame(loop);
 }
-
 loop();
 </script>
 </body>
