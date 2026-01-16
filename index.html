@@ -1,13 +1,53 @@
-<script>
-window.onload = () => {
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Baumwoll-Farmer Pixelart</title>
+<style>
+  body {
+    margin: 0;
+    background: #87ceeb;
+    overflow: hidden;
+    font-family: sans-serif;
+  }
+  canvas {
+    display: block;
+    margin: auto;
+    background: #4caf50;
+    image-rendering: pixelated;
+  }
+  #info {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.6);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 16px;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
 
+<div id="info">🌿 Baumwolle: <span id="cotton">0</span></div>
+<canvas id="game" width="800" height="600"></canvas>
+
+<script defer>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
 
+// ---------------- Welt ----------------
 const WORLD_WIDTH = 2000;
 const WORLD_HEIGHT = 2000;
 
+// ---------------- Mini-Map ----------------
+const MINIMAP_SIZE = 160;
+const MINIMAP_PADDING = 10;
+
+// ---------------- State ----------------
 let cotton = 0;
 const keys = {};
 const particles = [];
@@ -45,8 +85,8 @@ function spawnParticles(x, y) {
   for (let i = 0; i < 8; i++) {
     particles.push({
       x, y,
-      vx: (Math.random()-0.5)*2,
-      vy: Math.random()*-2,
+      vx: (Math.random() - 0.5) * 2,
+      vy: Math.random() * -2,
       life: 30
     });
   }
@@ -79,8 +119,8 @@ function update() {
         p.stage = 0;
         p.lastGrow = Date.now();
         cotton++;
-        spawnParticles(p.x, p.y);
         document.getElementById("cotton").textContent = cotton;
+        spawnParticles(p.x, p.y);
       }
     });
   }
@@ -97,7 +137,7 @@ function update() {
   }
 }
 
-// ---------------- Draw Helpers ----------------
+// ---------------- Helpers ----------------
 const wx = x => Math.floor(x - camera.x);
 const wy = y => Math.floor(y - camera.y);
 
@@ -116,11 +156,9 @@ function drawPlant(p) {
   const px = wx(p.x);
   const py = wy(p.y);
 
-  // Schatten
   ctx.fillStyle = "rgba(0,0,0,0.3)";
   ctx.fillRect(px - 10, py + 24, 20, 6);
 
-  // Stiel
   ctx.fillStyle = "#2e7d32";
   ctx.fillRect(px - 2, py, 4, 28);
 
@@ -159,9 +197,49 @@ function drawFarmer() {
 
 function drawParticles() {
   particles.forEach(p => {
-    ctx.fillStyle = "rgba(255,255,255," + (p.life/30) + ")";
+    ctx.fillStyle = "rgba(255,255,255," + (p.life / 30) + ")";
     ctx.fillRect(wx(p.x), wy(p.y), 4, 4);
   });
+}
+
+function drawMiniMap() {
+  const scaleX = MINIMAP_SIZE / WORLD_WIDTH;
+  const scaleY = MINIMAP_SIZE / WORLD_HEIGHT;
+
+  const x0 = canvas.width - MINIMAP_SIZE - MINIMAP_PADDING;
+  const y0 = MINIMAP_PADDING;
+
+  ctx.fillStyle = "#1b5e20";
+  ctx.fillRect(x0, y0, MINIMAP_SIZE, MINIMAP_SIZE);
+
+  plants.forEach(p => {
+    if (p.stage === 3) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(
+        x0 + Math.floor(p.x * scaleX),
+        y0 + Math.floor(p.y * scaleY),
+        2, 2
+      );
+    }
+  });
+
+  ctx.fillStyle = "#2196f3";
+  ctx.fillRect(
+    x0 + Math.floor(farmer.x * scaleX) - 2,
+    y0 + Math.floor(farmer.y * scaleY) - 2,
+    4, 4
+  );
+
+  ctx.strokeStyle = "#ffeb3b";
+  ctx.strokeRect(
+    x0 + Math.floor(camera.x * scaleX),
+    y0 + Math.floor(camera.y * scaleY),
+    Math.floor(canvas.width * scaleX),
+    Math.floor(canvas.height * scaleY)
+  );
+
+  ctx.strokeStyle = "#000";
+  ctx.strokeRect(x0, y0, MINIMAP_SIZE, MINIMAP_SIZE);
 }
 
 function draw() {
@@ -169,6 +247,7 @@ function draw() {
   plants.forEach(drawPlant);
   drawParticles();
   drawFarmer();
+  drawMiniMap();
 }
 
 // ---------------- Loop ----------------
@@ -177,7 +256,8 @@ function loop() {
   draw();
   requestAnimationFrame(loop);
 }
-
 loop();
-};
 </script>
+
+</body>
+</html>
